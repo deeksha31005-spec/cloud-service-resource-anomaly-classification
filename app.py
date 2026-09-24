@@ -1,203 +1,249 @@
 import streamlit as st
 import pandas as pd
 import joblib
+import plotly.graph_objects as go
+import plotly.express as px
 
-
-# ============================================================
-# LOAD TRAINED MODEL
-# ============================================================
-
-model_package = joblib.load("cloud_anomaly_model.pkl")
-
-model = model_package["model"]
-scaler = model_package["scaler"]
-feature_columns = model_package["features"]
-
-
-# ============================================================
-# PAGE CONFIGURATION
-# ============================================================
+# ---------------------------------------------------------
+# PAGE CONFIG
+# ---------------------------------------------------------
 
 st.set_page_config(
-    page_title="Cloud Anomaly Detection",
+    page_title="Cloud Anomaly Monitor",
     page_icon="☁️",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-
-# ============================================================
+# ---------------------------------------------------------
 # CUSTOM CSS
-# ============================================================
+# ---------------------------------------------------------
 
 st.markdown("""
 <style>
 
-    /* ---------- MAIN PAGE ---------- */
-
+    /* Main application */
     .stApp {
-        background-color: #0b1120;
+        background: #0b0f19;
     }
 
-    .main .block-container {
-        max-width: 1400px;
+    /* Sidebar */
+    section[data-testid="stSidebar"] {
+        background: #111827;
+        border-right: 1px solid #1f2937;
+    }
+
+    /* Main content */
+    .block-container {
         padding-top: 2rem;
         padding-bottom: 3rem;
+        max-width: 1450px;
     }
 
+    /* Headings */
+    h1, h2, h3 {
+        letter-spacing: -0.5px;
+    }
 
-    /* ---------- HEADER ---------- */
-
+    /* Hero */
     .hero {
+        padding: 28px 32px;
+        border-radius: 20px;
         background: linear-gradient(
             135deg,
-            #111c35 0%,
-            #172f52 100%
+            #111827 0%,
+            #172554 100%
         );
-
-        border: 1px solid #29466b;
-        border-radius: 20px;
-
-        padding: 32px 38px;
-        margin-bottom: 28px;
+        border: 1px solid #263449;
+        margin-bottom: 25px;
     }
 
     .hero-title {
-        color: #f8fafc;
-        font-size: 36px;
-        font-weight: 750;
+        font-size: 34px;
+        font-weight: 700;
         margin-bottom: 8px;
     }
 
     .hero-subtitle {
-        color: #94a3b8;
+        color: #9ca3af;
         font-size: 16px;
-        line-height: 1.6;
     }
 
-
-    /* ---------- SECTION HEADINGS ---------- */
-
-    .section-title {
-        color: #e2e8f0;
-        font-size: 23px;
-        font-weight: 700;
-        margin-top: 24px;
-        margin-bottom: 15px;
-    }
-
-
-    /* ---------- METRIC CARDS ---------- */
-
-    div[data-testid="metric-container"] {
-        background-color: #111827;
-        border: 1px solid #263244;
-        border-radius: 15px;
-        padding: 18px;
-    }
-
-
-    /* ---------- RESULT CARDS ---------- */
-
-    .normal-card {
-        background: linear-gradient(
-            135deg,
-            #063b2a,
-            #0b5139
-        );
-
-        border: 1px solid #16845c;
-        border-radius: 20px;
-
-        padding: 32px;
-        text-align: center;
-
-        margin-top: 15px;
-    }
-
-
-    .anomaly-card {
-        background: linear-gradient(
-            135deg,
-            #481616,
-            #681d1d
-        );
-
-        border: 1px solid #d64545;
-        border-radius: 20px;
-
-        padding: 32px;
-        text-align: center;
-
-        margin-top: 15px;
-    }
-
-
-    .result-title {
-        color: white;
-        font-size: 30px;
-        font-weight: 800;
-        margin-bottom: 10px;
-    }
-
-
-    .probability {
-        color: white;
-        font-size: 46px;
-        font-weight: 800;
-        margin-bottom: 8px;
-    }
-
-
-    .result-description {
-        color: #dbeafe;
-        font-size: 15px;
-    }
-
-
-    /* ---------- INFORMATION CARDS ---------- */
-
-    .info-card {
-        background-color: #111827;
-        border: 1px solid #263244;
-        border-radius: 15px;
-
+    /* Cards */
+    .card {
         padding: 20px;
-        min-height: 130px;
+        border-radius: 16px;
+        background: #111827;
+        border: 1px solid #263449;
+        margin-bottom: 18px;
     }
 
-    .info-title {
-        color: #94a3b8;
-        font-size: 14px;
-        margin-bottom: 8px;
+    .card-title {
+        font-size: 18px;
+        font-weight: 600;
+        margin-bottom: 12px;
     }
 
-    .info-value {
-        color: #f8fafc;
-        font-size: 22px;
+    /* Prediction cards */
+    .prediction-normal {
+        padding: 28px;
+        border-radius: 18px;
+        background: #062e1b;
+        border: 1px solid #166534;
+        text-align: center;
+    }
+
+    .prediction-anomaly {
+        padding: 28px;
+        border-radius: 18px;
+        background: #3b0a0a;
+        border: 1px solid #991b1b;
+        text-align: center;
+    }
+
+    .prediction-title {
+        font-size: 30px;
         font-weight: 700;
     }
 
+    .prediction-subtitle {
+        color: #d1d5db;
+        margin-top: 6px;
+    }
 
-    /* ---------- FOOTER ---------- */
+    /* Metric cards */
+    div[data-testid="stMetric"] {
+        background: #111827;
+        border: 1px solid #263449;
+        padding: 16px;
+        border-radius: 14px;
+    }
 
+    /* Buttons */
+    .stButton > button {
+        width: 100%;
+        border-radius: 12px;
+        height: 3.2em;
+        font-weight: 600;
+        border: none;
+        background: linear-gradient(90deg, #2563eb, #7c3aed);
+        color: white;
+    }
+
+    .stButton > button:hover {
+        background: linear-gradient(90deg, #1d4ed8, #6d28d9);
+        color: white;
+    }
+
+    /* Divider */
+    hr {
+        border-color: #263449;
+    }
+
+    /* Footer */
     .footer {
         text-align: center;
-        color: #64748b;
+        color: #6b7280;
+        padding-top: 25px;
         font-size: 13px;
+    }
 
-        margin-top: 45px;
-        padding-top: 20px;
+    /* Light mode support */
+    @media (prefers-color-scheme: light) {
 
-        border-top: 1px solid #1e293b;
+        .stApp {
+            background: #f7f9fc;
+        }
+
+        section[data-testid="stSidebar"] {
+            background: #ffffff;
+            border-right: 1px solid #e5e7eb;
+        }
+
+        .hero {
+            background: linear-gradient(
+                135deg,
+                #ffffff 0%,
+                #eef4ff 100%
+            );
+            border: 1px solid #dbe3ef;
+        }
+
+        .hero-subtitle {
+            color: #64748b;
+        }
+
+        .card {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+        }
+
+        div[data-testid="stMetric"] {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+        }
+
+        hr {
+            border-color: #e2e8f0;
+        }
+
+        .footer {
+            color: #64748b;
+        }
     }
 
 </style>
 """, unsafe_allow_html=True)
 
+# ---------------------------------------------------------
+# LOAD MODEL
+# ---------------------------------------------------------
 
-# ============================================================
-# HERO HEADER
-# ============================================================
+@st.cache_resource
+def load_model():
+    package = joblib.load("cloud_anomaly_model.pkl")
+
+    return (
+        package["model"],
+        package["scaler"],
+        package["features"]
+    )
+
+
+model, scaler, feature_columns = load_model()
+
+# ---------------------------------------------------------
+# SIDEBAR
+# ---------------------------------------------------------
+
+with st.sidebar:
+
+    st.markdown("## ☁️ Cloud AI Monitor")
+
+    st.markdown("---")
+
+    st.markdown("### 🧠 Model")
+
+    st.write("Logistic Regression")
+
+    st.markdown("### 📊 Test Performance")
+
+    st.metric("Accuracy", "96.33%")
+    st.metric("Precision", "86.30%")
+    st.metric("Recall", "49.61%")
+    st.metric("F1 Score", "63.00%")
+    st.metric("ROC-AUC", "88.20%")
+
+    st.markdown("---")
+
+    st.caption(
+        "Educational machine-learning prototype "
+        "for cloud resource anomaly classification."
+    )
+
+# ---------------------------------------------------------
+# HERO SECTION
+# ---------------------------------------------------------
 
 st.markdown("""
 <div class="hero">
@@ -207,221 +253,188 @@ st.markdown("""
     </div>
 
     <div class="hero-subtitle">
-        AI-powered monitoring system for identifying unusual
-        resource and service-performance behavior in cloud environments.
+        Monitor cloud resource behavior and classify unusual
+        service conditions using machine learning.
     </div>
 
 </div>
 """, unsafe_allow_html=True)
 
-
-# ============================================================
+# ---------------------------------------------------------
 # MODEL OVERVIEW
-# ============================================================
+# ---------------------------------------------------------
 
-st.markdown(
-    '<div class="section-title">📊 Model Overview</div>',
-    unsafe_allow_html=True
-)
+st.subheader("📊 Model Overview")
 
-col1, col2, col3, col4 = st.columns(4)
+c1, c2, c3, c4 = st.columns(4)
 
-with col1:
+with c1:
     st.metric(
-        "🤖 Model",
+        "Model",
         "Logistic Regression"
     )
 
-with col2:
+with c2:
     st.metric(
-        "📌 Input Features",
+        "Input Features",
         "8"
     )
 
-with col3:
+with c3:
     st.metric(
-        "🎯 ROC-AUC",
+        "ROC-AUC",
         "88.20%"
     )
 
-with col4:
+with c4:
     st.metric(
-        "⚠️ Dataset Anomaly Rate",
+        "Anomaly Rate",
         "7.65%"
     )
 
-
-# ============================================================
+# ---------------------------------------------------------
 # INPUT SECTION
-# ============================================================
+# ---------------------------------------------------------
 
-st.markdown(
-    '<div class="section-title">🖥️ Cloud Resource Monitoring</div>',
-    unsafe_allow_html=True
+st.markdown("---")
+
+st.subheader("🎛️ Resource Monitoring")
+
+st.caption(
+    "Enter the current cloud-service resource measurements "
+    "to evaluate whether the observation is anomalous."
 )
 
-left_column, right_column = st.columns(2)
+# Compute
+st.markdown("### 🖥️ Compute Resources")
 
+c1, c2, c3 = st.columns(3)
 
-# ============================================================
-# COMPUTE RESOURCES
-# ============================================================
-
-with left_column:
-
-    st.markdown("### 🖥️ Compute Resources")
-
+with c1:
     cpu_node1 = st.number_input(
         "Node 1 CPU Utilization",
         min_value=0.0,
         value=10.0,
-        step=0.1
+        step=0.5
     )
 
+with c2:
     cpu_node2 = st.number_input(
         "Node 2 CPU Utilization",
         min_value=0.0,
         value=5.0,
-        step=0.1
+        step=0.5
     )
 
-    memory_carts_db = st.number_input(
+with c3:
+    memory = st.number_input(
         "Carts DB Memory Utilization",
         min_value=0.0,
-        value=5.0,
-        step=0.1
+        value=4.5,
+        step=0.5
     )
 
+# Network
+st.markdown("### 🌐 Network & Traffic")
 
-# ============================================================
-# NETWORK AND TRAFFIC
-# ============================================================
+c1, c2, c3 = st.columns(3)
 
-with right_column:
-
-    st.markdown("### 🌐 Network & Traffic")
-
-    network_user = st.number_input(
+with c1:
+    network = st.number_input(
         "User Network RX Bytes",
         min_value=0.0,
         value=20000.0,
-        step=100.0
+        step=500.0
     )
 
-    carts_req_rate = st.number_input(
+with c2:
+    carts_rate = st.number_input(
         "Carts Request Rate",
         min_value=0.0,
-        value=5.0,
-        step=0.1
+        value=5.5,
+        step=0.5
     )
 
-    user_req_rate = st.number_input(
+with c3:
+    user_rate = st.number_input(
         "User Request Rate",
         min_value=0.0,
         value=11.0,
-        step=0.1
+        step=0.5
     )
 
+# Service performance
+st.markdown("### ⚡ Service Performance")
 
-# ============================================================
-# SERVICE PERFORMANCE
-# ============================================================
+c1, c2 = st.columns(2)
 
-st.markdown(
-    '<div class="section-title">⏱️ Service Performance</div>',
-    unsafe_allow_html=True
-)
-
-col1, col2 = st.columns(2)
-
-with col1:
-
-    orders_p95 = st.number_input(
+with c1:
+    orders_latency = st.number_input(
         "Orders p95 Response Time",
         min_value=0.0,
         value=80.0,
-        step=1.0
+        step=10.0
     )
 
-with col2:
-
-    frontend_p95 = st.number_input(
+with c2:
+    frontend_latency = st.number_input(
         "Front-end p95 Response Time",
         min_value=0.0,
         value=170.0,
-        step=1.0
+        step=10.0
     )
 
+# ---------------------------------------------------------
+# ANALYZE BUTTON
+# ---------------------------------------------------------
 
-# ============================================================
-# PREDICTION BUTTON
-# ============================================================
+st.markdown("")
 
-st.markdown("<br>", unsafe_allow_html=True)
-
-predict = st.button(
-    "🔍 Analyze Resource Behavior",
-    use_container_width=True
+analyze = st.button(
+    "🔍 Analyze Resource Behavior"
 )
 
-
-# ============================================================
+# ---------------------------------------------------------
 # PREDICTION
-# ============================================================
+# ---------------------------------------------------------
 
-if predict:
+if analyze:
 
-    # Create input DataFrame
-    input_data = pd.DataFrame(
-        [[
-            cpu_node1,
-            cpu_node2,
-            memory_carts_db,
-            network_user,
-            carts_req_rate,
-            user_req_rate,
-            orders_p95,
-            frontend_p95
-        ]],
-        columns=feature_columns
-    )
+    input_data = pd.DataFrame([[
+        cpu_node1,
+        cpu_node2,
+        memory,
+        network,
+        carts_rate,
+        user_rate,
+        orders_latency,
+        frontend_latency
+    ]], columns=feature_columns)
 
-    # Apply the same scaler used during model training
-    input_scaled = scaler.transform(input_data)
+    scaled_data = scaler.transform(input_data)
 
-    # Make prediction
-    prediction = model.predict(input_scaled)[0]
+    prediction = model.predict(scaled_data)[0]
 
-    # Calculate anomaly probability
-    probability = model.predict_proba(input_scaled)[0][1]
+    probability = model.predict_proba(scaled_data)[0][1]
 
+    probability_percent = probability * 100
 
-    # ========================================================
-    # PREDICTION RESULT
-    # ========================================================
+    st.markdown("---")
 
-    st.markdown(
-        '<div class="section-title">🚨 Prediction Result</div>',
-        unsafe_allow_html=True
-    )
-
+    st.subheader("🎯 Detection Result")
 
     if prediction == 1:
 
         st.markdown(
             f"""
-            <div class="anomaly-card">
+            <div class="prediction-anomaly">
 
-                <div class="result-title">
-                    ⚠️ ANOMALY DETECTED
+                <div class="prediction-title">
+                    🚨 ANOMALOUS
                 </div>
 
-                <div class="probability">
-                    {probability:.2%}
-                </div>
-
-                <div class="result-description">
-                    High probability of anomalous cloud-resource behavior
+                <div class="prediction-subtitle">
+                    Unusual resource or service behavior detected
                 </div>
 
             </div>
@@ -433,18 +446,14 @@ if predict:
 
         st.markdown(
             f"""
-            <div class="normal-card">
+            <div class="prediction-normal">
 
-                <div class="result-title">
-                    ✅ SYSTEM NORMAL
+                <div class="prediction-title">
+                    ✅ NORMAL
                 </div>
 
-                <div class="probability">
-                    {probability:.2%}
-                </div>
-
-                <div class="result-description">
-                    Low probability of anomalous cloud-resource behavior
+                <div class="prediction-subtitle">
+                    Resource behavior appears within the learned normal pattern
                 </div>
 
             </div>
@@ -452,31 +461,62 @@ if predict:
             unsafe_allow_html=True
         )
 
+    # -----------------------------------------------------
+    # PROBABILITY GAUGE
+    # -----------------------------------------------------
 
-    # ========================================================
-    # PROBABILITY
-    # ========================================================
+    st.markdown("### 🎯 Anomaly Probability")
 
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    st.markdown("### 📈 Anomaly Probability")
-
-    st.progress(
-        int(probability * 100)
+    gauge = go.Figure(
+        go.Indicator(
+            mode="gauge+number",
+            value=probability_percent,
+            number={
+                "suffix": "%",
+                "font": {"size": 34}
+            },
+            gauge={
+                "axis": {
+                    "range": [0, 100]
+                },
+                "bar": {
+                    "color": "#7c3aed"
+                },
+                "steps": [
+                    {
+                        "range": [0, 50],
+                        "color": "#172033"
+                    },
+                    {
+                        "range": [50, 75],
+                        "color": "#332a12"
+                    },
+                    {
+                        "range": [75, 100],
+                        "color": "#351414"
+                    }
+                ]
+            }
+        )
     )
 
-    st.caption(
-        f"Model-estimated anomaly probability: {probability:.2%}"
+    gauge.update_layout(
+        height=300,
+        margin=dict(l=30, r=30, t=30, b=20),
+        paper_bgcolor="rgba(0,0,0,0)",
+        font=dict(color="white")
     )
 
+    st.plotly_chart(
+        gauge,
+        use_container_width=True
+    )
 
-    # ========================================================
+    # -----------------------------------------------------
     # RESOURCE PROFILE
-    # ========================================================
+    # -----------------------------------------------------
 
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    st.markdown("### 📊 Current Resource Profile")
+    st.markdown("### 📈 Current Resource Profile")
 
     profile = pd.DataFrame({
         "Metric": [
@@ -486,75 +526,161 @@ if predict:
             "User Network RX",
             "Carts Request Rate",
             "User Request Rate",
-            "Orders p95 Response Time",
-            "Front-end p95 Response Time"
+            "Orders p95",
+            "Front-end p95"
         ],
-
         "Value": [
             cpu_node1,
             cpu_node2,
-            memory_carts_db,
-            network_user,
-            carts_req_rate,
-            user_req_rate,
-            orders_p95,
-            frontend_p95
+            memory,
+            network,
+            carts_rate,
+            user_rate,
+            orders_latency,
+            frontend_latency
         ]
     })
 
-    st.dataframe(
+    fig_profile = px.bar(
         profile,
+        x="Metric",
+        y="Value",
+        title="Current Cloud Resource Measurements"
+    )
+
+    fig_profile.update_layout(
+        height=430,
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        xaxis_tickangle=-35,
+        margin=dict(l=20, r=20, t=60, b=100)
+    )
+
+    st.plotly_chart(
+        fig_profile,
+        use_container_width=True
+    )
+
+    # -----------------------------------------------------
+    # MODEL PERFORMANCE
+    # -----------------------------------------------------
+
+    st.markdown("---")
+
+    st.subheader("📊 Model Performance")
+
+    performance = pd.DataFrame({
+        "Metric": [
+            "Accuracy",
+            "Precision",
+            "Recall",
+            "F1 Score",
+            "ROC-AUC"
+        ],
+        "Score": [
+            96.33,
+            86.30,
+            49.61,
+            63.00,
+            88.20
+        ]
+    })
+
+    fig_performance = px.bar(
+        performance,
+        x="Metric",
+        y="Score",
+        text="Score",
+        title="Logistic Regression Test Performance"
+    )
+
+    fig_performance.update_traces(
+        texttemplate="%{text:.2f}%",
+        textposition="outside"
+    )
+
+    fig_performance.update_yaxes(
+        range=[0, 105],
+        title="Score (%)"
+    )
+
+    fig_performance.update_layout(
+        height=430,
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)"
+    )
+
+    st.plotly_chart(
+        fig_performance,
+        use_container_width=True
+    )
+
+    # -----------------------------------------------------
+    # FEATURE IMPACT
+    # -----------------------------------------------------
+
+    st.markdown("---")
+
+    st.subheader("🧠 Feature Impact")
+
+    coefficients = model.coef_[0]
+
+    feature_impact = pd.DataFrame({
+        "Feature": feature_columns,
+        "Impact": coefficients
+    }).sort_values(
+        "Impact",
+        ascending=True
+    )
+
+    fig_impact = px.bar(
+        feature_impact,
+        x="Impact",
+        y="Feature",
+        orientation="h",
+        title="Logistic Regression Feature Coefficients"
+    )
+
+    fig_impact.update_layout(
+        height=500,
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)"
+    )
+
+    st.plotly_chart(
+        fig_impact,
+        use_container_width=True
+    )
+
+    # -----------------------------------------------------
+    # INPUT TABLE
+    # -----------------------------------------------------
+
+    st.subheader("📋 Input Summary")
+
+    display_data = input_data.T.reset_index()
+
+    display_data.columns = [
+        "Feature",
+        "Input Value"
+    ]
+
+    st.dataframe(
+        display_data,
         use_container_width=True,
         hide_index=True
     )
 
-
-# ============================================================
-# SIDEBAR
-# ============================================================
-
-with st.sidebar:
-
-    st.markdown("## ☁️ Cloud AI Monitor")
-
-    st.markdown("---")
-
-    st.markdown("### 📌 About")
-
-    st.write(
-        "This educational machine-learning prototype "
-        "classifies cloud-service observations as "
-        "Normal or Anomalous."
-    )
-
-    st.markdown("### 🧠 Model")
-
-    st.write("Logistic Regression")
-
-    st.markdown("### 📊 Test Performance")
-
-    st.write("Accuracy: 96.33%")
-    st.write("Precision: 86.30%")
-    st.write("Recall: 49.61%")
-    st.write("F1 Score: 63.00%")
-    st.write("ROC-AUC: 88.20%")
-
-    st.markdown("---")
-
-    st.caption(
-        "Educational ML prototype"
-    )
-
-
-# ============================================================
+# ---------------------------------------------------------
 # FOOTER
-# ============================================================
+# ---------------------------------------------------------
 
-st.markdown("""
-<div class="footer">
-
-    Cloud Service Resource Anomaly Classification
-    • Machine Learning Capstone Project
-
-</div>
-""", unsafe_allow_html=True)
+st.markdown(
+    """
+    <div class="footer">
+        Cloud Service Resource Anomaly Classification •
+        Educational ML Prototype • Logistic Regression
+    </div>
+    """,
+    unsafe_allow_html=True
+)
