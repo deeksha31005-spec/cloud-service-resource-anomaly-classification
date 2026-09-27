@@ -4,6 +4,12 @@ import joblib
 import plotly.graph_objects as go
 import plotly.express as px
 
+from sklearn.metrics import (
+    confusion_matrix,
+    roc_curve,
+    roc_auc_score
+)
+
 
 # =========================================================
 # PAGE CONFIGURATION
@@ -34,6 +40,38 @@ def load_model():
 
 
 model, scaler, feature_columns = load_model()
+
+
+# =========================================================
+# LOAD DATASET FOR MODEL EVALUATION
+# =========================================================
+
+@st.cache_data
+def load_evaluation_data():
+
+    df = pd.read_csv("cloud_anomaly_selected.csv")
+
+    df["time"] = pd.to_datetime(df["time"])
+
+    df = df.sort_values("time").reset_index(drop=True)
+
+    X = df[feature_columns]
+    y = df["anomaly"]
+
+    split_index = int(len(df) * 0.8)
+
+    X_test = X.iloc[split_index:]
+    y_test = y.iloc[split_index:]
+
+    X_test_scaled = scaler.transform(X_test)
+
+    y_pred = model.predict(X_test_scaled)
+    y_probability = model.predict_proba(X_test_scaled)[:, 1]
+
+    return y_test, y_pred, y_probability
+
+
+y_test, y_pred_test, y_probability_test = load_evaluation_data()
 
 
 # =========================================================
@@ -256,10 +294,6 @@ analyze = st.button(
 
 if analyze:
 
-    # -----------------------------------------------------
-    # CREATE INPUT DATAFRAME
-    # -----------------------------------------------------
-
     input_data = pd.DataFrame(
         [[
             cpu_node1,
@@ -274,17 +308,7 @@ if analyze:
         columns=feature_columns
     )
 
-
-    # -----------------------------------------------------
-    # SCALE INPUT
-    # -----------------------------------------------------
-
     scaled_data = scaler.transform(input_data)
-
-
-    # -----------------------------------------------------
-    # MODEL PREDICTION
-    # -----------------------------------------------------
 
     prediction = model.predict(scaled_data)[0]
 
@@ -300,7 +324,6 @@ if analyze:
     st.markdown("---")
 
     st.header("🎯 Detection Result")
-
 
     if prediction == 1:
 
@@ -323,7 +346,6 @@ if analyze:
     # =====================================================
 
     st.subheader("🎯 Anomaly Probability")
-
 
     gauge = go.Figure(
         go.Indicator(
@@ -363,7 +385,6 @@ if analyze:
         )
     )
 
-
     gauge.update_layout(
         height=330,
         margin=dict(
@@ -374,7 +395,6 @@ if analyze:
         ),
         paper_bgcolor="rgba(0,0,0,0)"
     )
-
 
     st.plotly_chart(
         gauge,
@@ -389,7 +409,6 @@ if analyze:
     st.markdown("---")
 
     st.header("📈 Current Resource Profile")
-
 
     profile = pd.DataFrame(
         {
@@ -416,14 +435,12 @@ if analyze:
         }
     )
 
-
     fig_profile = px.bar(
         profile,
         x="Metric",
         y="Value",
         title="Current Cloud Resource Measurements"
     )
-
 
     fig_profile.update_layout(
         height=450,
@@ -437,7 +454,6 @@ if analyze:
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)"
     )
-
 
     st.plotly_chart(
         fig_profile,
@@ -453,7 +469,26 @@ if analyze:
 
     st.header("📊 Model Performance")
 
+    performance = pd.DataFrame(
+        {
+            "Metric": [
+                "Accuracy",
+                "Precision",
+                "Recall",
+                "F1 Score",
+                "ROC-AUC"
+            ],
+            "Score": [
+                96.33,
+                86.30,
+                63.00,
+                88.20,
+                49.61
+            ]
+        }
+    )
 
+    # Keep displayed order consistent with metric names
     performance = pd.DataFrame(
         {
             "Metric": [
@@ -473,7 +508,6 @@ if analyze:
         }
     )
 
-
     fig_performance = px.bar(
         performance,
         x="Metric",
@@ -482,18 +516,15 @@ if analyze:
         title="Logistic Regression Test Performance"
     )
 
-
     fig_performance.update_traces(
         texttemplate="%{text:.2f}%",
         textposition="outside"
     )
 
-
     fig_performance.update_yaxes(
         range=[0, 105],
         title="Score (%)"
     )
-
 
     fig_performance.update_layout(
         height=450,
@@ -501,10 +532,122 @@ if analyze:
         plot_bgcolor="rgba(0,0,0,0)"
     )
 
-
     st.plotly_chart(
         fig_performance,
         use_container_width=True
+    )
+
+
+    # =====================================================
+    # CONFUSION MATRIX
+    # =====================================================
+
+    st.markdown("---")
+
+    st.header("🔲 Confusion Matrix")
+
+    cm = confusion_matrix(
+        y_test,
+        y_pred_test
+    )
+
+    cm_fig = go.Figure(
+        data=go.Heatmap(
+            z=cm,
+            x=["Predicted Normal", "Predicted Anomaly"],
+            y=["Actual Normal", "Actual Anomaly"],
+            text=cm,
+            texttemplate="%{text}",
+            textfont={
+                "size": 22
+            },
+            colorscale="Blues",
+            showscale=False
+        )
+    )
+
+    cm_fig.update_layout(
+        title="Test Set Confusion Matrix",
+        height=420,
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)"
+    )
+
+    st.plotly_chart(
+        cm_fig,
+        use_container_width=True
+    )
+
+    st.caption(
+        f"True Negatives: {cm[0, 0]}  |  "
+        f"False Positives: {cm[0, 1]}  |  "
+        f"False Negatives: {cm[1, 0]}  |  "
+        f"True Positives: {cm[1, 1]}"
+    )
+
+
+    # =====================================================
+    # ROC CURVE
+    # =====================================================
+
+    st.header("📈 ROC Curve")
+
+    fpr, tpr, thresholds = roc_curve(
+        y_test,
+        y_probability_test
+    )
+
+    auc_score = roc_auc_score(
+        y_test,
+        y_probability_test
+    )
+
+    roc_fig = go.Figure()
+
+    roc_fig.add_trace(
+        go.Scatter(
+            x=fpr,
+            y=tpr,
+            mode="lines",
+            name=f"Logistic Regression (AUC = {auc_score:.2f})"
+        )
+    )
+
+    roc_fig.add_trace(
+        go.Scatter(
+            x=[0, 1],
+            y=[0, 1],
+            mode="lines",
+            name="Random Classifier",
+            line=dict(
+                dash="dash"
+            )
+        )
+    )
+
+    roc_fig.update_layout(
+        title="Receiver Operating Characteristic Curve",
+        xaxis_title="False Positive Rate",
+        yaxis_title="True Positive Rate",
+        xaxis=dict(
+            range=[0, 1]
+        ),
+        yaxis=dict(
+            range=[0, 1]
+        ),
+        height=450,
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)"
+    )
+
+    st.plotly_chart(
+        roc_fig,
+        use_container_width=True
+    )
+
+    st.caption(
+        f"ROC-AUC on the chronological test set: "
+        f"{auc_score:.2%}"
     )
 
 
@@ -521,9 +664,7 @@ if analyze:
         "and relative strength of each selected feature."
     )
 
-
     coefficients = model.coef_[0]
-
 
     feature_impact = pd.DataFrame(
         {
@@ -535,7 +676,6 @@ if analyze:
         ascending=True
     )
 
-
     fig_impact = px.bar(
         feature_impact,
         x="Impact",
@@ -544,13 +684,11 @@ if analyze:
         title="Logistic Regression Feature Coefficients"
     )
 
-
     fig_impact.update_layout(
         height=520,
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)"
     )
-
 
     st.plotly_chart(
         fig_impact,
@@ -566,15 +704,12 @@ if analyze:
 
     st.header("📋 Input Summary")
 
-
     display_data = input_data.T.reset_index()
-
 
     display_data.columns = [
         "Feature",
         "Input Value"
     ]
-
 
     st.dataframe(
         display_data,
