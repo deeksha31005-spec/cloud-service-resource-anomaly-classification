@@ -237,6 +237,17 @@ The Decision Tree is not used in the deployed application because it was evaluat
 
 ---
 
+## 🌐 Live Demo
+
+Try the deployed Streamlit application:
+
+**Cloud Service Resource Anomaly Classification Dashboard**
+
+https://cloud-service-resource-anomaly-classification-dkqzkvtakffkt4m3.streamlit.app/
+---
+
+
+
 ## 🧪 Example Prediction
 
 An example observation with elevated resource usage, network activity, request rates, and response latency:
